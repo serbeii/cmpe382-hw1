@@ -24,37 +24,72 @@ int main() {
         fprintf(file1, "%d\n", val1);
         fprintf(file2, "%d\n", val2);
     }
-    printf("works0 %d\n", getpid());
-    int pipe1[2];
-    int pipe2[2];
-    pipe(pipe1);
-    pipe(pipe2);
+
+    fseek(file1, 0, SEEK_SET);
+    fseek(file2, 0, SEEK_SET);
+
+    file1 = fopen("file1.txt", "r");
+    file2 = fopen("file2.txt", "r");
+    // printf("works0 %d\n", getpid());
+    // parent to child
+    int p_p2c_1[2];
+    int p_p2c_2[2];
+    // child to parent
+    int p_c2p_1[2];
+    int p_c2p_2[2];
+    pipe(p_p2c_1);
+    pipe(p_p2c_2);
+    pipe(p_c2p_1);
+    pipe(p_c2p_2);
     int child1 = fork();
-    int child2 = 1;
-    write(pipe1[1], "writing", 16);
-    write(pipe2[1], "writing", 16);
+    int child2;
     if (child1 == 0) {
+        int n;
+        read(p_p2c_1[0], &n, sizeof(n));
+        // printf("works1 %d\n", getpid());
+        int total = count_primes(n, file1);
+        // printf("total p1: %d\n", total);
+        write(p_c2p_1[1], &total, sizeof(total));
+        close(p_p2c_1[1]);
+        int x;
+        read(p_p2c_1[0], &x, sizeof(x));
+        printf("X in P1: %d\n", x);
+        if (x > total) {
+            printf("I am Child process P1: The winner is child process P2\n");
+        }
+        exit(0);
+    } else {
         child2 = fork();
         if (child2 == 0) {
-            goto second;
+            int n;
+            read(p_p2c_2[0], &n, sizeof(n));
+            // printf("works2 %d\n", getpid());
+            int total = count_primes(n, file2);
+            // printf("total p2: %d\n", total);
+            write(p_c2p_2[1], &total, sizeof(total));
+            close(p_p2c_2[1]);
+            int x;
+            read(p_p2c_2[0], &x, sizeof(x));
+            printf("X in P2: %d\n", x);
+            if (x > total) {
+                printf(
+                    "I am Child process P2: The winner is child process P1\n");
+            }
+            exit(0);
+        } else {
+            // printf("works3 %d\n", getpid());
+            write(p_p2c_1[1], &n, sizeof(n));
+            write(p_p2c_2[1], &n, sizeof(n));
+            int firstval, secondval;
+            read(p_c2p_1[0], &firstval, sizeof(firstval));
+            read(p_c2p_2[0], &secondval, sizeof(secondval));
+            write(p_p2c_1[1], &secondval, sizeof(secondval));
+            write(p_p2c_2[1], &firstval, sizeof(firstval));
+            wait(NULL);
+            printf("The number of positive integers in each file: %d\n", n);
+            printf("The number of prime numbers in File1: %d\n", firstval);
+            printf("The number of prime numbers in File2: %d\n", secondval);
         }
-        printf("works1 %d\n", getpid());
-        int total = count_primes(n, file1);
-        printf("total p1: %d\n", total);
-        write(pipe1[1], "done", 16);
-        exit(0);
-    }
-second:
-    if (child2 == 0) {
-        printf("works2 %d\n", getpid());
-        int total = count_primes(n, file2);
-        printf("total p2: %d\n", total);
-        write(pipe2[1], "done", 16);
-        exit(0);
-    } else if (child1 != 0) {
-        printf("works3 %d\n", getpid());
-        wait(NULL);
-        wait(NULL);
     }
 }
 
@@ -67,15 +102,15 @@ int count_primes(int n, FILE* file) {
             count++;
         }
     }
-    printf("curr: %d, result: %d",count,result);
+    // printf("curr: %d, result: %d\n", count, result);
     return count;
 }
 
 int is_prime(int num) {
     for (int i = 2; i < num; i++) {
         if (num % i == 0) {
-            return 1;
+            return 0;
         }
     }
-    return 0;
+    return 1;
 }
